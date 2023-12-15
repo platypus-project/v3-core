@@ -54,6 +54,7 @@
   },
   "scripts": {
     "compile": "hardhat compile",
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "lint-ts-fix": "prettier --write \"./deploy/*.ts\""
   }
 }
