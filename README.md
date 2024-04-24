@@ -1,4 +1,4 @@
-# Uniswap V3 Deployment Guide
+# Platypus Deployment Guide
 
 There is a handful of steps to do in order to deploy the Uni V3 fork on a new Autonity chain:
 
@@ -44,7 +44,6 @@ After the node is up, we are particularly interested in three ports:
 The graph node is quite resource hungry, check the VPS requirements [here](https://thegraph.com/docs/en/network/indexing/#what-are-the-hardware-requirements).
 
 ## 3. Deploy subgraph to the node
-
 
 Here are the steps to deploy the Uni subgraph:
 
