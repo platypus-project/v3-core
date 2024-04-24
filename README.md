@@ -1,66 +1,78 @@
-# Uniswap V3
+# Uniswap V3 Deployment Guide
 
-[![Lint](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/lint.yml/badge.svg)](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/lint.yml)
-[![Tests](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/tests.yml/badge.svg)](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/tests.yml)
-[![Fuzz Testing](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/fuzz-testing.yml/badge.svg)](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/fuzz-testing.yml)
-[![Mythx](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/mythx.yml/badge.svg)](https://github.com/Uniswap/uniswap-v3-core/actions/workflows/mythx.yml)
-[![npm version](https://img.shields.io/npm/v/@uniswap/v3-core/latest.svg)](https://www.npmjs.com/package/@uniswap/v3-core/v/latest)
+There is a handful of steps to do in order to deploy the Uni V3 fork on a new Autonity chain:
 
-This repository contains the core smart contracts for the Uniswap V3 Protocol.
-For higher level contracts, see the [uniswap-v3-periphery](https://github.com/Uniswap/uniswap-v3-periphery)
-repository.
+## 1. Deploy the smart contracts
 
-## Bug bounty
+The first step is to deploy the smart contracts from the five repositories in the organization:
 
-This repository is subject to the Uniswap V3 bug bounty program, per the terms defined [here](./bug-bounty.md).
+- [v3-core](https://github.com/platypus-project/v3-core)
+- [v3-periphery](https://github.com/platypus-project/v3-periphery)
+- [universal-router](https://github.com/platypus-project/universal-router)
+- [swap-router-contracts](https://github.com/platypus-project/swap-router-contracts)
+- [v3-staker](https://github.com/platypus-project/v3-staker)
 
-## Local deployment
+The deployment order is essential. Some repositories require the existing deployment of others.
 
-In order to deploy this code to a local testnet, you should install the npm package
-`@uniswap/v3-core`
-and import the factory bytecode located at
-`@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json`.
-For example:
+In order to deploy the smart cotnracts:
 
-```typescript
-import {
-  abi as FACTORY_ABI,
-  bytecode as FACTORY_BYTECODE,
-} from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
+1. Clone the repo
+2. Run `npm install` (recommend using node 18)
+3. Run `npx hardhat compile` to compile the contracts
+4. Update the `hardhat.config.ts` file with the newest RPC endpoint and chainid
+5. Configure `.env` file referensing the `.env.example`
+6. Deploy the contracts with `npx hardhat migrate --network piccadilly --verify` command
 
-// deploy the bytecode
-```
+Don't forget to fund the deployer wallet beforehand
 
-This will ensure that you are testing against the same bytecode that is deployed to
-mainnet and public testnets, and all Uniswap code will correctly interoperate with
-your local deployment.
+## 2. Deploy the Graph node
 
-## Using solidity interfaces
+In order to deploy the Uni subgraph, we first need to setup the Graph node.
 
-The Uniswap v3 interfaces are available for import into solidity smart contracts
-via the npm artifact `@uniswap/v3-core`, e.g.:
+The Graph node is available as a Docker image and can be setup [just like that](https://github.com/platypus-project/developer-edition/blob/main/docker-compose.yml#L3).
 
-```solidity
-import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+You will need to provide the `POSTGRES_USER` and `POSTGRES_PASSWORD` variables.
 
-contract MyContract {
-  IUniswapV3Pool pool;
+Also it may be necessary to update the RPC `ethereum` endpoint.
 
-  function doSomethingWithPool() {
-    // pool.swap(...);
-  }
-}
+After the node is up, we are particularly interested in three ports:
 
-```
+- `8000` that serves the graphql server for subgraphs queries
+- `8020` that is needed to create and upload subgraphs
+- `5001` that serves the IPFS instance
 
-## Licensing
+The graph node is quite resource hungry, check the VPS requirements [here](https://thegraph.com/docs/en/network/indexing/#what-are-the-hardware-requirements).
 
-The primary license for Uniswap V3 Core is the Business Source License 1.1 (`BUSL-1.1`), see [`LICENSE`](./LICENSE). However, some files are dual licensed under `GPL-2.0-or-later`:
+## 3. Deploy subgraph to the node
 
-- All files in `contracts/interfaces/` may also be licensed under `GPL-2.0-or-later` (as indicated in their SPDX headers), see [`contracts/interfaces/LICENSE`](./contracts/interfaces/LICENSE)
-- Several files in `contracts/libraries/` may also be licensed under `GPL-2.0-or-later` (as indicated in their SPDX headers), see [`contracts/libraries/LICENSE`](contracts/libraries/LICENSE)
+Here are the steps to deploy the Uni subgraph:
 
-### Other Exceptions
+1. Clone the [repo](https://github.com/platypus-project/v3-subgraph)
+2. Run `npm install`
+3. Update the [yaml config](https://github.com/platypus-project/v3-subgraph/blob/main/subgraph.yaml) file with the required addresses from the smart contracts deployment step
+4. Run `npm run compile` to compile the schema and build the assemblyscript
+5. Update the `$GRAPH_NODE_ENDPOINT` (8020 port), `$IPFS_ENDPOINT` (5001 port), and `$GRAPH_VERSION` (can be arbitrary) env variables
+6. Execute `npm run create` and `npm run deploy` to upload the subgraph to the graph node.
 
-- `contracts/libraries/FullMath.sol` is licensed under `MIT` (as indicated in its SPDX header), see [`contracts/libraries/LICENSE_MIT`](contracts/libraries/LICENSE_MIT)
-- All files in `contracts/test` remain unlicensed (as indicated in their SPDX headers).
+The subgraph should be queryable at the `http://<graph_node_ip>:8000/subgraphs/name/uniswapv3` endpoint
+
+## 4. Deploy the front end
+
+The front end repo can be found [here](https://github.com/platypus-project/web-client).
+
+To build the repo, first you need to update its configs:
+
+1. Update smart contracts addresses [here](https://github.com/platypus-project/web-client/blob/main/src/constants/addresses.ts)
+2. Update the picadilly chainid [here](https://github.com/platypus-project/web-client/blob/main/src/constants/chains.ts)
+3. Update the picadilly RPC URL [here](https://github.com/platypus-project/web-client/blob/main/src/constants/networks.ts)
+4. Update the WETH address [here](https://github.com/platypus-project/web-client/blob/main/src/constants/tokens.ts#L110)
+
+You may also need to update the token list [here](https://github.com/platypus-project/token-list). This is used to show the default tokens of the Uni front end.
+
+Afterwards, update the `.env` and `.env.production` files with the required subgraphs endpoints.
+
+Then build the repo with Docker.
+
+## Disclaimer
+
+GLHW!
